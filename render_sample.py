@@ -1,6 +1,5 @@
 """Render one official portal notice as a publicly readable Markdown page."""
 
-# Trigger corrected detail-page sample workflow.
 
 from __future__ import annotations
 
@@ -12,7 +11,7 @@ from typing import Any
 
 from playwright.sync_api import sync_playwright
 
-TITLE_FRAGMENT = "北京市分行第十四届职工"
+NEWS_ID = "1ac43d5a34758fcff339c507dab3d7bfc799635417909b4bd2260b039fb18682114851abc0d16e9eae64eb75afd975ac"
 PORTAL_URL = "https://bocom-gys.bankcomm.com/espuser/register/noticePage"
 DETAIL_API_FRAGMENT = "/espddw/api/news/notice/index/details"
 OUTPUT = Path("notices/beijing-branch-sample.md")
@@ -45,32 +44,26 @@ def to_plain_text(value: str) -> str:
 
 
 def fetch_detail() -> dict[str, Any]:
-    payloads: list[dict[str, Any]] = []
     with sync_playwright() as playwright:
         browser = playwright.chromium.launch(headless=True)
         page = browser.new_page(viewport={"width": 1440, "height": 1800})
-
-        def capture(response: Any) -> None:
-            if DETAIL_API_FRAGMENT not in response.url:
-                return
-            try:
-                payloads.append(response.json())
-            except Exception:
-                pass
-
-        page.on("response", capture)
-        page.goto(PORTAL_URL, wait_until="domcontentloaded", timeout=60000)
-        page.wait_for_timeout(5000)
-        link = page.locator("a").filter(has_text=TITLE_FRAGMENT).first
-        if not link.count():
-            raise RuntimeError("未在当前公告页找到北京分行样例项目")
-        link.click()
-        page.wait_for_timeout(1500)
-        browser.close()
-
-    if not payloads:
-        raise RuntimeError("未捕获到公告详情接口响应")
-    return payloads[-1].get("data", payloads[-1])
+        try:
+            page.goto(PORTAL_URL, wait_until="domcontentloaded", timeout=60000)
+            page.wait_for_timeout(1200)
+            payload = page.evaluate(
+                """async newsId => {
+                    const response = await fetch('/espddw/api/news/notice/index/details', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({newsId}),
+                    });
+                    return await response.json();
+                }""",
+                NEWS_ID,
+            )
+        finally:
+            browser.close()
+    return payload.get("data", payload)
 
 
 def main() -> None:
