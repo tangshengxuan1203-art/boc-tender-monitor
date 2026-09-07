@@ -7,10 +7,11 @@ import json
 import os
 import re
 import sys
-from datetime import datetime, timezone
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 from urllib.parse import urljoin
+from zoneinfo import ZoneInfo
 
 import requests
 from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
@@ -27,7 +28,7 @@ MAX_ITEMS_IN_MESSAGE = 8
 
 
 def now_shanghai() -> str:
-    return datetime.now(timezone.utc).astimezone().strftime("%Y-%m-%d %H:%M UTC")
+    return datetime.now(ZoneInfo("Asia/Shanghai")).strftime("%Y-%m-%d %H:%M CST")
 
 
 def normalize(value: str) -> str:
@@ -48,7 +49,7 @@ def scrape_portal() -> list[dict[str, str]]:
         try:
             page.goto(PORTAL_URL, wait_until="domcontentloaded", timeout=60000)
             page.wait_for_timeout(5000)
-            # The portal is a single-page application.  Read anchors and their
+            # The portal is a single-page application. Read anchors and their
             # nearest listing container after its JavaScript has rendered.
             raw_items = page.locator("a").evaluate_all(
                 """anchors => anchors.map(a => {
@@ -61,7 +62,6 @@ def scrape_portal() -> list[dict[str, str]]:
                     };
                 })"""
             )
-            title = page.title()
             body = page.locator("body").inner_text(timeout=10000)
         except PlaywrightTimeoutError as exc:
             raise RuntimeError(f"门户访问超时：{exc}") from exc
