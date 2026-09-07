@@ -1,5 +1,7 @@
 """Render one official portal notice as a publicly readable Markdown page."""
 
+# Trigger corrected detail-page sample workflow.
+
 from __future__ import annotations
 
 import html
