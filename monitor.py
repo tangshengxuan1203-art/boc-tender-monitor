@@ -65,8 +65,11 @@ def scrape_portal() -> list[dict[str, Any]]:
             ),
         )
         api_payloads: list[Any] = []
+        detail_requests: list[dict[str, Any]] = []
 
         def capture_notice_response(response: Any) -> None:
+            if "/espddw/api/news/notice/index/details" in response.url:
+                detail_requests.append({"method": response.request.method, "post_data": response.request.post_data, "url": response.url})
             if "/espddw/api/news/notice/index/list" not in response.url:
                 return
             try:
@@ -160,6 +163,7 @@ def scrape_portal() -> list[dict[str, Any]]:
 
     print(f"Notice-related resource URLs: {resource_urls}")
     print(f"Detail-page probe: {detail_probe}")
+    print(f"Detail API requests: {detail_requests}")
     print(f"Notice API payloads: {json.dumps(api_payloads, ensure_ascii=False)[:12000]}")
     print(f"Scraped {len(raw_items)} rendered links; matched {len(candidates)} target announcements.")
     print(f"Matched link routes: {[(item['title'], item['raw_href'], item['onclick'], item['html']) for item in candidates]}")
