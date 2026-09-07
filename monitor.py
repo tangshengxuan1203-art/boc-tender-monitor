@@ -110,6 +110,26 @@ def scrape_portal() -> list[dict[str, Any]]:
                 }
             else:
                 detail_probe = {"error": "Beijing notice link was not found"}
+
+            beijing_record = next(
+                (
+                    record
+                    for payload in api_payloads
+                    for record in payload.get("data", {}).get("pageModel", {}).get("dataList", [])
+                    if "北京市分行" in record.get("title", "")
+                ),
+                None,
+            )
+            if beijing_record:
+                direct_url = f"{PORTAL_URL.replace('noticePage', 'noticeDetail')}?newsId={beijing_record['newsId']}"
+                direct_page = browser.new_page()
+                direct_page.goto(direct_url, wait_until="domcontentloaded", timeout=60000)
+                direct_page.wait_for_timeout(1200)
+                direct_probe = {
+                    "url": direct_url,
+                    "body_contains_title": "北京市分行" in direct_page.locator("body").inner_text(timeout=10000),
+                }
+                direct_page.close()
         except PlaywrightTimeoutError as exc:
             raise RuntimeError(f"门户访问超时：{exc}") from exc
         finally:
