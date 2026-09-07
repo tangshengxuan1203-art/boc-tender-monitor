@@ -1,5 +1,7 @@
 """Daily tender monitor for the Bank of Communications supplier portal."""
 
+# Final verification run trigger.
+
 from __future__ import annotations
 
 import hashlib
