@@ -28,7 +28,7 @@ MAX_ITEMS_IN_MESSAGE = 10
 TARGETS = (
     {"key": "zhangjiang", "label": "张江园区", "keywords": ("张江", "张江园区")},
     {"key": "head_office", "label": "总行采购", "keywords": ("总行",)},
-    {"key": "beijing_branch_test", "label": "北京分行（测试）", "keywords": ("北京分行",)},
+    {"key": "beijing_branch_test", "label": "北京分行（测试）", "keywords": ("北京分行", "北京市分行")},
 )
 PROCUREMENT_MARKERS = ("采购公告", "招标公告", "招标", "采购项目", "竞争性磋商", "询价", "单一来源")
 
