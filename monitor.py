@@ -1,6 +1,5 @@
 """Daily tender monitor for the Bank of Communications supplier portal."""
 
-# Extended verification run trigger.
 
 from __future__ import annotations
 
@@ -81,7 +80,6 @@ def scrape_portal() -> list[dict[str, Any]]:
                 })"""
             )
             body = page.locator("body").inner_text(timeout=10000)
-            print(f"Rendered link sample: {[normalize(x.get('title', '')) for x in raw_items if normalize(x.get('title', ''))][:12]}")
         except PlaywrightTimeoutError as exc:
             raise RuntimeError(f"门户访问超时：{exc}") from exc
         finally:
