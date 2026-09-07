@@ -1,0 +1,23 @@
+name: Send random WeCom notice test
+
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/wecom-random-test.yml]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    if: github.event.head_commit.message == 'test: send random portal notice to WeCom'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install -r requirements.txt && python -m playwright install --with-deps chromium
+      - run: python wecom_random_test.py
+        env:
+          WECOM_WEBHOOK: ${{ secrets.WECOM_WEBHOOK || secrets.WECOM_WEBHOOK_URL }}
