@@ -128,10 +128,13 @@ def scrape_portal() -> list[dict[str, Any]]:
                 "detail_url": detail_url,
                 "context": context[:500],
                 "categories": categories,
+                "raw_href": raw_href,
+                "onclick": item.get("onclick", ""),
             }
         )
 
     print(f"Scraped {len(raw_items)} rendered links; matched {len(candidates)} target announcements.")
+    print(f"Matched link routes: {[(item['title'], item['raw_href'], item['onclick']) for item in candidates]}")
     return candidates
 
 
