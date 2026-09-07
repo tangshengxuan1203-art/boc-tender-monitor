@@ -43,7 +43,7 @@ jobs:
       - name: Save processed announcement IDs
         if: success()
         run: |
-          if git diff --quiet -- data/seen.json; then
+          if test -z "$(git status --porcelain -- data/seen.json)"; then
             echo "No state changes to commit."
             exit 0
           fi
