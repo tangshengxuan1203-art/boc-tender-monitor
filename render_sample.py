@@ -25,7 +25,13 @@ def fetch_current_record() -> dict[str, Any]:
     payloads: list[dict[str, Any]] = []
     with sync_playwright() as playwright:
         browser = playwright.chromium.launch(headless=True)
-        page = browser.new_page(viewport={"width": 1440, "height": 1800})
+        page = browser.new_page(
+            viewport={"width": 1440, "height": 1800},
+            user_agent=(
+                "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
+                "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+            ),
+        )
 
         def capture(response: Any) -> None:
             if LIST_API not in response.url:
