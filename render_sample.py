@@ -1,5 +1,4 @@
-"""Render one official portal notice as a publicly readable Markdown page."""
-
+"""Render the current portal notice as a publicly readable Markdown page."""
 
 from __future__ import annotations
 
@@ -11,10 +10,9 @@ from typing import Any
 
 from playwright.sync_api import sync_playwright
 
-NEWS_ID = "1ac43d5a34758fcff339c507dab3d7bfc799635417909b4bd2260b039fb18682114851abc0d16e9eae64eb75afd975ac"
 PORTAL_URL = "https://bocom-gys.bankcomm.com/espuser/register/noticePage"
 DETAIL_API_FRAGMENT = "/espddw/api/news/notice/index/details"
-OUTPUT = Path("notices/beijing-branch-sample.md")
+OUTPUT = Path("notices/official-notice-sample.md")
 
 
 def find_value(value: Any, names: tuple[str, ...]) -> str:
@@ -43,31 +41,47 @@ def to_plain_text(value: str) -> str:
     return value.strip()
 
 
-def fetch_detail() -> dict[str, Any]:
+def fetch_current_detail() -> dict[str, Any]:
+    payloads: list[dict[str, Any]] = []
     with sync_playwright() as playwright:
         browser = playwright.chromium.launch(headless=True)
         page = browser.new_page(viewport={"width": 1440, "height": 1800})
+
+        def capture(response: Any) -> None:
+            if DETAIL_API_FRAGMENT not in response.url:
+                return
+            try:
+                payloads.append(response.json())
+            except Exception:
+                pass
+
+        page.on("response", capture)
         try:
             page.goto(PORTAL_URL, wait_until="domcontentloaded", timeout=60000)
-            page.wait_for_timeout(1200)
-            payload = page.evaluate(
-                """async newsId => {
-                    const response = await fetch('/espddw/api/news/notice/index/details', {
-                        method: 'POST',
-                        headers: {'Content-Type': 'application/json'},
-                        body: JSON.stringify({newsId}),
-                    });
-                    return await response.json();
-                }""",
-                NEWS_ID,
+            page.wait_for_timeout(5000)
+            titles = page.locator("a").all_inner_texts()
+            selected_title = next(
+                (
+                    title.strip()
+                    for title in titles
+                    if "采购公告" in title or "招标公告" in title
+                ),
+                "",
             )
+            if not selected_title:
+                raise RuntimeError("当前页未找到可用于样例的采购/招标公告")
+            page.locator("a").filter(has_text=selected_title).first.click()
+            page.wait_for_timeout(1500)
         finally:
             browser.close()
-    return payload.get("data", payload)
+
+    if not payloads:
+        raise RuntimeError("未捕获到公告详情接口响应")
+    return payloads[-1].get("data", payloads[-1])
 
 
 def main() -> None:
-    data = fetch_detail()
+    data = fetch_current_detail()
     title = find_value(data, ("title", "newsTitle")) or "交通银行公告详情"
     news_id = find_value(data, ("newsId",))
     content = find_value(
