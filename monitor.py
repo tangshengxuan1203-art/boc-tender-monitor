@@ -95,7 +95,18 @@ def scrape_portal() -> list[dict[str, Any]]:
                 })"""
             )
             body = page.locator("body").inner_text(timeout=10000)
-            resource_urls = page.playwright if False else page.evaluate("performance.getEntriesByType('resource').map(x => x.name).filter(x => x.includes('notice') || x.includes('Notice'))")
+            resource_urls = page.evaluate("performance.getEntriesByType('resource').map(x => x.name).filter(x => x.includes('notice') || x.includes('Notice'))")
+            beijing_link = page.locator("a").filter(has_text="北京市分行").first
+            if beijing_link.count():
+                beijing_link.click()
+                page.wait_for_timeout(1000)
+                detail_probe = {
+                    "url": page.url,
+                    "body_contains_title": "北京市分行" in page.locator("body").inner_text(timeout=10000),
+                    "resources": page.evaluate("performance.getEntriesByType('resource').map(x => x.name).filter(x => x.includes('notice') || x.includes('Notice'))"),
+                }
+            else:
+                detail_probe = {"error": "Beijing notice link was not found"}
         except PlaywrightTimeoutError as exc:
             raise RuntimeError(f"门户访问超时：{exc}") from exc
         finally:
@@ -148,6 +159,7 @@ def scrape_portal() -> list[dict[str, Any]]:
         )
 
     print(f"Notice-related resource URLs: {resource_urls}")
+    print(f"Detail-page probe: {detail_probe}")
     print(f"Notice API payloads: {json.dumps(api_payloads, ensure_ascii=False)[:12000]}")
     print(f"Scraped {len(raw_items)} rendered links; matched {len(candidates)} target announcements.")
     print(f"Matched link routes: {[(item['title'], item['raw_href'], item['onclick'], item['html']) for item in candidates]}")
