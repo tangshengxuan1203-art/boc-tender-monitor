@@ -26,6 +26,7 @@ MAX_ITEMS_IN_MESSAGE = 10
 TARGETS = (
     {"key": "zhangjiang", "label": "张江园区", "keywords": ("张江", "张江园区")},
     {"key": "head_office", "label": "总行采购", "keywords": ("总行",)},
+    {"key": "beijing_branch_test", "label": "北京分行（测试）", "keywords": ("北京分行",)},
 )
 PROCUREMENT_MARKERS = ("采购公告", "招标公告", "招标", "采购项目", "竞争性磋商", "询价", "单一来源")
 
@@ -206,7 +207,9 @@ def main() -> int:
         items = scrape_portal()
         old_ids = read_state()
         new_items = [item for item in items if item["id"] not in old_ids]
-        send_wecom(make_message(items, new_items, None))
+        message = make_message(items, new_items, None)
+        print(message)
+        send_wecom(message)
         write_state(old_ids | {item["id"] for item in items})
         print(f"Matched {len(items)} item(s); {len(new_items)} new item(s).")
         return 0
