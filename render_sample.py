@@ -64,12 +64,15 @@ def fetch_current_detail() -> dict[str, Any]:
                 (
                     title.strip()
                     for title in titles
-                    if "采购公告" in title or "招标公告" in title
+                    if len(title.strip()) >= 20
+                    and "交通银行" in title
+                    and "告知函" not in title
+                    and "认定标准" not in title
                 ),
                 "",
             )
             if not selected_title:
-                raise RuntimeError("当前页未找到可用于样例的采购/招标公告")
+                raise RuntimeError("当前页未找到可用于样例的正式公告")
             page.locator("a").filter(has_text=selected_title).first.click()
             page.wait_for_timeout(1500)
         finally:
