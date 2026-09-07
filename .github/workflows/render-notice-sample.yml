@@ -1,0 +1,33 @@
+name: Render notice detail sample
+
+on:
+  push:
+    paths:
+      - "render_sample.py"
+
+permissions:
+  contents: write
+
+jobs:
+  render:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install requests==2.32.5
+      - run: python render_sample.py
+      - name: Publish sample page
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add notices/
+          if git diff --cached --quiet; then
+            exit 0
+          fi
+          git commit -m "docs: publish Beijing notice detail sample"
+          git push
