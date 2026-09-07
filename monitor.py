@@ -64,6 +64,17 @@ def scrape_portal() -> list[dict[str, Any]]:
                 "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
             ),
         )
+        api_payloads: list[Any] = []
+
+        def capture_notice_response(response: Any) -> None:
+            if "/espddw/api/news/notice/index/list" not in response.url:
+                return
+            try:
+                api_payloads.append(response.json())
+            except Exception:
+                pass
+
+        page.on("response", capture_notice_response)
         try:
             page.goto(PORTAL_URL, wait_until="domcontentloaded", timeout=60000)
             page.wait_for_timeout(5000)
@@ -137,6 +148,7 @@ def scrape_portal() -> list[dict[str, Any]]:
         )
 
     print(f"Notice-related resource URLs: {resource_urls}")
+    print(f"Notice API payloads: {json.dumps(api_payloads, ensure_ascii=False)[:12000]}")
     print(f"Scraped {len(raw_items)} rendered links; matched {len(candidates)} target announcements.")
     print(f"Matched link routes: {[(item['title'], item['raw_href'], item['onclick'], item['html']) for item in candidates]}")
     return candidates
