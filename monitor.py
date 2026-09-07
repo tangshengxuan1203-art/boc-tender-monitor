@@ -1,19 +1,14 @@
 """Daily tender monitor for the Bank of Communications supplier portal."""
 
-# Beijing verification run trigger.
-
-
 from __future__ import annotations
 
 import hashlib
 import json
 import os
-import re
 import sys
 from datetime import datetime
 from pathlib import Path
 from typing import Any
-from urllib.parse import urljoin
 from zoneinfo import ZoneInfo
 
 import requests
@@ -21,40 +16,45 @@ from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
 from playwright.sync_api import sync_playwright
 
 PORTAL_URL = "https://bocom-gys.bankcomm.com/espuser/register/noticePage"
+NOTICE_LIST_API = "https://bocom-gys.bankcomm.com/espddw/api/news/notice/index/list"
 STATE_PATH = Path("data/seen.json")
 MAX_ITEMS_IN_MESSAGE = 10
 
-# Keep Zhangjiang monitoring and additionally monitor head-office procurement notices.
 TARGETS = (
-    {"key": "zhangjiang", "label": "张江园区", "keywords": ("张江", "张江园区")},
-    {"key": "head_office", "label": "总行采购", "keywords": ("总行",)},
-    {"key": "beijing_branch_test", "label": "北京分行（测试）", "keywords": ("北京分行", "北京市分行")},
+    {"key": "zhangjiang", "label": "张江园区"},
+    {"key": "head_office", "label": "总行采购"},
 )
-PROCUREMENT_MARKERS = ("采购公告", "招标公告", "招标", "采购项目", "竞争性磋商", "询价", "单一来源")
+HEAD_OFFICE_PROCUREMENT_TYPES = {"采购公告", "招标公告"}
 
 
 def now_shanghai() -> str:
     return datetime.now(ZoneInfo("Asia/Shanghai")).strftime("%Y-%m-%d %H:%M CST")
 
 
-def normalize(value: str) -> str:
-    return re.sub(r"\s+", " ", value).strip()
+def format_date(timestamp_ms: Any) -> str:
+    try:
+        return datetime.fromtimestamp(int(timestamp_ms) / 1000, ZoneInfo("Asia/Shanghai")).strftime("%Y-%m-%d")
+    except (TypeError, ValueError, OSError):
+        return "未知"
 
 
-def categories_for(text: str) -> list[str]:
+def notice_categories(record: dict[str, Any]) -> list[str]:
+    title = str(record.get("title", ""))
     categories: list[str] = []
-    for target in TARGETS:
-        if not any(keyword in text for keyword in target["keywords"]):
-            continue
-        # Head-office matches are intentionally limited to procurement-style notices.
-        if target["key"] == "head_office" and not any(marker in text for marker in PROCUREMENT_MARKERS):
-            continue
-        categories.append(target["key"])
+    if "张江" in title:
+        categories.append("zhangjiang")
+    # The supplier portal returns the actual purchaser separately from the title.
+    if (
+        record.get("purchaser") == "总行"
+        and record.get("newsTypeCn") in HEAD_OFFICE_PROCUREMENT_TYPES
+    ):
+        categories.append("head_office")
     return categories
 
 
 def scrape_portal() -> list[dict[str, Any]]:
-    """Extract rendered announcement links and categorize them."""
+    """Read the portal's rendered list response and return target notices."""
+    responses: list[dict[str, Any]] = []
     with sync_playwright() as playwright:
         browser = playwright.chromium.launch(headless=True)
         page = browser.new_page(
@@ -64,72 +64,20 @@ def scrape_portal() -> list[dict[str, Any]]:
                 "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
             ),
         )
-        api_payloads: list[Any] = []
-        detail_requests: list[dict[str, Any]] = []
 
-        def capture_notice_response(response: Any) -> None:
-            if "/espddw/api/news/notice/index/details" in response.url:
-                detail_requests.append({"method": response.request.method, "post_data": response.request.post_data, "url": response.url})
-            if "/espddw/api/news/notice/index/list" not in response.url:
+        def capture_list_response(response: Any) -> None:
+            if NOTICE_LIST_API not in response.url:
                 return
             try:
-                api_payloads.append(response.json())
+                responses.append(response.json())
             except Exception:
                 pass
 
-        page.on("response", capture_notice_response)
+        page.on("response", capture_list_response)
         try:
             page.goto(PORTAL_URL, wait_until="domcontentloaded", timeout=60000)
             page.wait_for_timeout(5000)
-            # The portal is a single-page application. Read rendered listing links,
-            # plus the raw href so the notification can provide a detail URL.
-            raw_items = page.locator("a").evaluate_all(
-                """anchors => anchors.map(a => {
-                    const container = a.closest('tr, li, article, .item, .list-item, .notice-item')
-                        || a.parentElement || a;
-                    return {
-                      title: (a.innerText || a.textContent || '').trim(),
-                      href: a.href || '',
-                      rawHref: a.getAttribute('href') || '',
-                      onclick: a.getAttribute('onclick') || '',
-                      html: a.outerHTML,
-                      context: (container.innerText || container.textContent || '').trim()
-                    };
-                })"""
-            )
             body = page.locator("body").inner_text(timeout=10000)
-            resource_urls = page.evaluate("performance.getEntriesByType('resource').map(x => x.name).filter(x => x.includes('notice') || x.includes('Notice'))")
-            beijing_link = page.locator("a").filter(has_text="北京市分行").first
-            if beijing_link.count():
-                beijing_link.click()
-                page.wait_for_timeout(1000)
-                detail_probe = {
-                    "url": page.url,
-                    "body_contains_title": "北京市分行" in page.locator("body").inner_text(timeout=10000),
-                    "resources": page.evaluate("performance.getEntriesByType('resource').map(x => x.name).filter(x => x.includes('notice') || x.includes('Notice'))"),
-                }
-            else:
-                detail_probe = {"error": "Beijing notice link was not found"}
-
-            beijing_record = next(
-                (
-                    record
-                    for payload in api_payloads
-                    for record in payload.get("data", {}).get("pageModel", {}).get("dataList", [])
-                    if "北京市分行" in record.get("title", "")
-                ),
-                None,
-            )
-            if beijing_record:
-                direct_url = f"{PORTAL_URL.replace('noticePage', 'noticeDetail')}?newsId={beijing_record['newsId']}"
-                direct_page = browser.new_page()
-                direct_page.goto(direct_url, wait_until="domcontentloaded", timeout=60000)
-                direct_page.wait_for_timeout(1200)
-                direct_probe = {
-                    "url": direct_url,
-                    "body_contains_title": "北京市分行" in direct_page.locator("body").inner_text(timeout=10000),
-                }
-                direct_page.close()
         except PlaywrightTimeoutError as exc:
             raise RuntimeError(f"门户访问超时：{exc}") from exc
         finally:
@@ -137,58 +85,35 @@ def scrape_portal() -> list[dict[str, Any]]:
 
     if "502 Bad Gateway" in body or "unsafe legacy renegotiation" in body:
         raise RuntimeError("门户当前返回网关或 TLS 错误")
+    if not responses:
+        raise RuntimeError("未捕获到公告列表数据接口响应")
 
-    candidates: list[dict[str, Any]] = []
+    records: list[dict[str, Any]] = []
+    for response in responses:
+        records.extend(response.get("data", {}).get("pageModel", {}).get("dataList", []))
+
+    items: list[dict[str, Any]] = []
     seen: set[str] = set()
-    for item in raw_items:
-        title = normalize(item.get("title", ""))
-        context = normalize(item.get("context", ""))
-        combined = f"{title} {context}"
-        categories = categories_for(combined)
-        if not title or len(title) < 6 or not categories:
+    for record in records:
+        news_id = str(record.get("newsId", "")).strip()
+        title = str(record.get("title", "")).strip()
+        categories = notice_categories(record)
+        if not news_id or not title or not categories or news_id in seen:
             continue
-        if len(context) < 10 or len(context) > 3000:
-            continue
-
-        raw_href = (item.get("rawHref") or "").strip()
-        resolved_href = (item.get("href") or "").strip()
-        # Use the detail page whenever the listing provides a real URL. If the
-        # portal renders a non-link JavaScript control, transparently fall back
-        # to its official announcement page instead of inventing a deep link.
-        if raw_href and not raw_href.lower().startswith(("javascript:", "#")):
-            detail_url = urljoin(PORTAL_URL, raw_href)
-        elif resolved_href and resolved_href != PORTAL_URL:
-            detail_url = resolved_href
-        else:
-            detail_url = PORTAL_URL
-
-        identity = hashlib.sha256(
-            f"{title}|{detail_url}|{context[:500]}".encode()
-        ).hexdigest()
-        if identity in seen:
-            continue
-        seen.add(identity)
-        candidates.append(
+        seen.add(news_id)
+        items.append(
             {
-                "id": identity,
+                "id": hashlib.sha256(news_id.encode()).hexdigest(),
+                "news_id": news_id,
                 "title": title[:180],
-                "detail_url": detail_url,
-                "context": context[:500],
                 "categories": categories,
-                "raw_href": raw_href,
-                "onclick": item.get("onclick", ""),
-                "html": item.get("html", ""),
+                "notice_type": str(record.get("newsTypeCn", "公告")),
+                "published_at": format_date(record.get("publishTime")),
             }
         )
 
-    print(f"Notice-related resource URLs: {resource_urls}")
-    print(f"Detail-page probe: {detail_probe}")
-    print(f"Direct URL probe: {direct_probe if 'direct_probe' in locals() else None}")
-    print(f"Detail API requests: {detail_requests}")
-    print(f"Notice API payloads: {json.dumps(api_payloads, ensure_ascii=False)[:12000]}")
-    print(f"Scraped {len(raw_items)} rendered links; matched {len(candidates)} target announcements.")
-    print(f"Matched link routes: {[(item['title'], item['raw_href'], item['onclick'], item['html']) for item in candidates]}")
-    return candidates
+    print(f"Read {len(records)} portal notices; matched {len(items)} target notices.")
+    return items
 
 
 def read_state() -> set[str]:
@@ -239,7 +164,14 @@ def make_message(items: list[dict[str, Any]], new_items: list[dict[str, Any]], e
             continue
         lines.append(f"\n【{target['label']}】{len(group)} 条")
         for item in group[:MAX_ITEMS_IN_MESSAGE]:
-            lines.extend((f"• {item['title']}", f"详情：{item['detail_url']}"))
+            lines.extend(
+                (
+                    f"• {item['title']}",
+                    f"类型：{item['notice_type']}｜发布时间：{item['published_at']}",
+                    f"公告编号：{item['news_id']}",
+                    f"公告查询入口：{PORTAL_URL}",
+                )
+            )
         if len(group) > MAX_ITEMS_IN_MESSAGE:
             lines.append(f"其余 {len(group) - MAX_ITEMS_IN_MESSAGE} 条请查看运行日志。")
     return "\n".join((header, *lines))
@@ -265,9 +197,7 @@ def main() -> int:
         items = scrape_portal()
         old_ids = read_state()
         new_items = [item for item in items if item["id"] not in old_ids]
-        message = make_message(items, new_items, None)
-        print(message)
-        send_wecom(message)
+        send_wecom(make_message(items, new_items, None))
         write_state(old_ids | {item["id"] for item in items})
         print(f"Matched {len(items)} item(s); {len(new_items)} new item(s).")
         return 0
