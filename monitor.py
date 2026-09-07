@@ -78,11 +78,13 @@ def scrape_portal() -> list[dict[str, Any]]:
                       href: a.href || '',
                       rawHref: a.getAttribute('href') || '',
                       onclick: a.getAttribute('onclick') || '',
+                      html: a.outerHTML,
                       context: (container.innerText || container.textContent || '').trim()
                     };
                 })"""
             )
             body = page.locator("body").inner_text(timeout=10000)
+            resource_urls = page.playwright if False else page.evaluate("performance.getEntriesByType('resource').map(x => x.name).filter(x => x.includes('notice') || x.includes('Notice'))")
         except PlaywrightTimeoutError as exc:
             raise RuntimeError(f"门户访问超时：{exc}") from exc
         finally:
@@ -130,11 +132,13 @@ def scrape_portal() -> list[dict[str, Any]]:
                 "categories": categories,
                 "raw_href": raw_href,
                 "onclick": item.get("onclick", ""),
+                "html": item.get("html", ""),
             }
         )
 
+    print(f"Notice-related resource URLs: {resource_urls}")
     print(f"Scraped {len(raw_items)} rendered links; matched {len(candidates)} target announcements.")
-    print(f"Matched link routes: {[(item['title'], item['raw_href'], item['onclick']) for item in candidates]}")
+    print(f"Matched link routes: {[(item['title'], item['raw_href'], item['onclick'], item['html']) for item in candidates]}")
     return candidates
 
 
