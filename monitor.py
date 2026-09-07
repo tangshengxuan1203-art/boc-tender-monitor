@@ -1,6 +1,5 @@
 """Daily tender monitor for the Bank of Communications supplier portal."""
 
-# Test run trigger: verify GitHub Actions and WeCom delivery.
 
 from __future__ import annotations
 
