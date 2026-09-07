@@ -183,6 +183,7 @@ def scrape_portal() -> list[dict[str, Any]]:
 
     print(f"Notice-related resource URLs: {resource_urls}")
     print(f"Detail-page probe: {detail_probe}")
+    print(f"Direct URL probe: {direct_probe if 'direct_probe' in locals() else None}")
     print(f"Detail API requests: {detail_requests}")
     print(f"Notice API payloads: {json.dumps(api_payloads, ensure_ascii=False)[:12000]}")
     print(f"Scraped {len(raw_items)} rendered links; matched {len(candidates)} target announcements.")
