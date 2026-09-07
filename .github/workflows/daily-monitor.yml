@@ -1,10 +1,6 @@
 name: Monitor Zhangjiang tenders
 
 on:
-  # Temporary test hook; removed after Beijing verification.
-  push:
-    paths:
-      - "monitor.py"
   schedule:
     # 09:00 China Standard Time (UTC+8)
     - cron: "0 1 * * *"
