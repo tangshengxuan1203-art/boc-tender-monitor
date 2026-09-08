@@ -37,7 +37,7 @@ jobs:
           if test -z "$(git status --porcelain -- data/seen.json)"; then exit 0; fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git pull --rebase origin main
           git add data/seen.json
           git commit -m "chore: update tender monitor state"
+          git pull --rebase origin main
           git push
