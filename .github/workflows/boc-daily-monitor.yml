@@ -3,8 +3,7 @@ name: Daily BOC tender monitor
 on:
   schedule:
     - cron: "0 2 * * *" # 10:00 China Standard Time (UTC+8)
-  push:
-    paths: [.github/monitor-trigger]
+  workflow_dispatch:
 
 permissions:
   contents: write
