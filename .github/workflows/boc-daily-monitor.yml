@@ -5,8 +5,6 @@ on:
   schedule:
     - cron: "57 1 * * *"
   workflow_dispatch:
-  push:
-    paths: [.github/monitor-trigger]
 
 permissions:
   contents: write
