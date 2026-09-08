@@ -4,8 +4,6 @@ on:
   schedule:
     - cron: "30 1 * * *" # 09:30 China Standard Time (UTC+8)
   workflow_dispatch:
-  push:
-    paths: [.github/monitor-trigger]
 
 permissions:
   contents: write
