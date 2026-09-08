@@ -1,9 +1,9 @@
 name: Daily BOC tender monitor
 
 on:
-  # Pre-warm before the requested delivery time, then run at 10:30 China time.
-  schedule:
-    - cron: "15 2 * * *"
+  # Triggered by the independent cloud scheduler at 10:30 China time.
+  push:
+    paths: [data/automation-trigger.json]
   workflow_dispatch:
 
 permissions:
@@ -16,18 +16,13 @@ concurrency:
 jobs:
   monitor:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 15
     env:
       WECOM_WEBHOOK: ${{ secrets.WECOM_WEBHOOK || secrets.WECOM_WEBHOOK_URL }}
     steps:
       - uses: actions/checkout@v4
         with:
           persist-credentials: true
-      - name: Wait until 10:30 China time
-        run: |
-          target=$(date -u -d "today 02:30:00" +%s)
-          now=$(date -u +%s)
-          if [ "$target" -gt "$now" ]; then sleep $((target - now)); fi
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
