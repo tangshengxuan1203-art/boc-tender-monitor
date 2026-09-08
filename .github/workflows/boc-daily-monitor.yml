@@ -1,9 +1,12 @@
 name: Daily BOC tender monitor
 
 on:
+  # Start before the busy whole-hour queue, then wait until 10:00 China time.
   schedule:
-    - cron: "0 2 * * *" # 10:00 China Standard Time (UTC+8)
+    - cron: "57 1 * * *"
   workflow_dispatch:
+  push:
+    paths: [.github/monitor-trigger]
 
 permissions:
   contents: write
@@ -15,13 +18,18 @@ concurrency:
 jobs:
   monitor:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     env:
       WECOM_WEBHOOK: ${{ secrets.WECOM_WEBHOOK || secrets.WECOM_WEBHOOK_URL }}
     steps:
       - uses: actions/checkout@v4
         with:
           persist-credentials: true
+      - name: Wait until 10:00 China time
+        run: |
+          target=$(date -u -d "today 02:00:00" +%s)
+          now=$(date -u +%s)
+          if [ "$target" -gt "$now" ]; then sleep $((target - now)); fi
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
