@@ -1,3 +1,6 @@
 {
+  "timezone": "Asia/Shanghai",
+  "scheduled_time": "10:30",
+  "github_schedule_cron_utc": "30 2 * * *",
   "last_triggered_at": "2026-10-01T02:32:30.000Z"
 }
