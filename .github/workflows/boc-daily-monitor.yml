@@ -1,8 +1,12 @@
 name: Daily BOC tender monitor
 
 on:
-  # Triggered by the independent cloud scheduler at 10:30 China time.
+  # Daily at 10:30 Asia/Shanghai (02:30 UTC); actual execution may be delayed.
+  schedule:
+    - cron: '30 2 * * *'
+  # Compatibility entry point for an external scheduler; its status is unverified.
   push:
+    branches: [main]
     paths: [data/automation-trigger.json]
   workflow_dispatch:
 
