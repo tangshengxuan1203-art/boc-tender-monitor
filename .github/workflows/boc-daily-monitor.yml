@@ -20,7 +20,7 @@ concurrency:
 jobs:
   monitor:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 30
     env:
       WECOM_WEBHOOK: ${{ secrets.WECOM_WEBHOOK || secrets.WECOM_WEBHOOK_URL }}
     steps:
@@ -34,9 +34,11 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install -r requirements.txt
           python -m playwright install --with-deps chromium
+      - run: python -m unittest -v
       - run: python monitor.py
       - name: Save processed announcement IDs
-        if: success()
+        # Preserve successfully delivered batches even if a later batch failed.
+        if: always()
         run: |
           if test -z "$(git status --porcelain -- data/seen.json)"; then exit 0; fi
           git config user.name "github-actions[bot]"
@@ -45,3 +47,4 @@ jobs:
           git commit -m "chore: update tender monitor state"
           git pull --rebase origin main
           git push
+
